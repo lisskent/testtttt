@@ -245,7 +245,7 @@ function saveGoal(){haptic('success');const v=numVal('goalInput');if(v)data.goal
 function exportData(){const payload={app:'Мой заработок',version:20,exportedAt:new Date().toISOString(),data};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`moj-zarabotok-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Резервная копия создана')}
 function importData(file){const r=new FileReader();r.onload=()=>{try{const p=JSON.parse(r.result),d=normalize(p.data||p);if(!d.works.length)throw 0;if(!confirm('Импорт полностью заменит текущие данные. Продолжить?'))return;data=d;save();renderAll();toast('Данные импортированы')}catch{toast('Не удалось импортировать файл')}};r.readAsText(file)}
 function clearMonth(){if(!confirm(`Удалить все данные за ${monthLabel()}? Это нельзя отменить.`))return;const m=monthKey();Object.keys(data.days).filter(d=>d.startsWith(m)).forEach(d=>delete data.days[d]);Object.keys(data.notes).filter(d=>d.startsWith(m)).forEach(d=>delete data.notes[d]);Object.keys(data.calendar).filter(d=>d.startsWith(m)).forEach(d=>delete data.calendar[d]);delete data.goals[m];save();renderAll();toast('Данные месяца очищены')}
-function showScreen(s){haptic();document.querySelectorAll('.screen').forEach(x=>x.classList.toggle('active',x.id===s));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.screen===s));if(s==='month')renderMonth();if(s==='calendar')renderCalendar();if(s==='stats')renderStats();if(s==='settings')renderSettings()}
+function showScreen(s){haptic();document.querySelectorAll('.screen').forEach(x=>{const active=x.id===s;x.classList.toggle('active',active);x.style.display=active?'block':'none';x.setAttribute('aria-hidden',active?'false':'true')});document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.screen===s));if(s==='month')renderMonth();if(s==='calendar')renderCalendar();if(s==='stats')renderStats();if(s==='settings')renderSettings()}
 function applyTheme(){const dark=data.settings.theme==='dark';document.documentElement.classList.toggle('dark',dark);document.body.classList.toggle('dark',dark);const meta=document.querySelector('meta[name=theme-color]');if(meta)meta.content=dark?'#11121a':'#5865e8';const b=document.getElementById('themeToggle');if(b)b.textContent=dark?'☀️ Светлая тема':'🌙 Тёмная тема'}
 function toggleTheme(){haptic();data.settings.theme=data.settings.theme==='dark'?'light':'dark';save();applyTheme();toast(data.settings.theme==='dark'?'Тёмная тема включена':'Светлая тема включена')}
 function renderSettings(){ensureFinance();renderWorkList();renderCategorySettings();document.getElementById('userName').value=data.user.name||'';applyTheme()}
@@ -982,6 +982,10 @@ const oldRenderMonthNEXT=renderMonth;renderMonth=function(){oldRenderMonthNEXT()
 const oldRenderAllNEXT=renderAll;renderAll=function(){oldRenderAllNEXT();NEXT.render();};
 const oldShowScreenNEXT=showScreen;showScreen=function(s){oldShowScreenNEXT(s);if(s==='month')NEXT.renderMonth();if(s==='settings')NEXT.renderTemplates();};
 NEXT.init();
+
+// v28.1 HOTFIX: enforce one visible screen even if an old cached CSS bundle is still active.
+const __showScreenStableV281=showScreen;
+showScreen=function(s){__showScreenStableV281(s);document.querySelectorAll('.screen').forEach(x=>{const active=x.id===s;x.style.display=active?'block':'none';x.classList.toggle('active',active);x.setAttribute('aria-hidden',active?'false':'true')});};
 
 // Keep the experimental build clearly separate from the original app data.
 data.version=28;data.next=data.next||{shiftTemplates:[]};save();
