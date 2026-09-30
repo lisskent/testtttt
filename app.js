@@ -983,42 +983,69 @@ const oldRenderAllNEXT=renderAll;renderAll=function(){oldRenderAllNEXT();NEXT.re
 const oldShowScreenNEXT=showScreen;showScreen=function(s){oldShowScreenNEXT(s);if(s==='month')NEXT.renderMonth();if(s==='settings')NEXT.renderTemplates();};
 NEXT.init();
 
-// v28.2 SCREEN CONTROLLER: one screen only, using both hidden attribute and inline display.
-// The previous build accumulated several showScreen wrappers, which made navigation fragile.
-// Keep one final controller at the end of the file so every tab has exactly one visible section.
-const __screenIds=['home','month','money','calendar','stats','settings'];
-function showScreen(s){
-  if(!__screenIds.includes(s)) s='home';
-  haptic();
+// v28.3 SCREEN CONTROLLER: one authoritative navigation function.
+// Older releases accumulated several showScreen wrappers. Replace them at the end
+// with one explicit function and rebind navigation so the current handler is used.
+const __screenIdsV283=['home','month','money','calendar','stats','settings'];
+function navigateToScreenV283(screenId){
+  const s=__screenIdsV283.includes(screenId)?screenId:'home';
+  try{haptic();}catch(e){}
+
   document.querySelectorAll('.screen').forEach(el=>{
     const active=el.id===s;
-    el.hidden=!active;
-    el.style.setProperty('display',active?'block':'none','important');
     el.classList.toggle('active',active);
     el.setAttribute('aria-hidden',active?'false':'true');
+    el.hidden=!active;
+    el.style.display=active?'block':'none';
+    el.style.pointerEvents=active?'auto':'none';
   });
-  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.screen===s));
-  if(s==='month'){renderMonth();renderWeekdayAnalyticsNEXT();NEXT.renderMonth();}
-  if(s==='money'){
-    try{const added=materializeRecurringV22(new Date());if(added)toast(`Добавлено регулярных операций: ${added}`);}catch(e){}
-    renderMoneyV21();
-    try{renderSalary();}catch(e){}
+
+  document.querySelectorAll('.tab[data-screen]').forEach(el=>{
+    el.classList.toggle('active',el.dataset.screen===s);
+  });
+
+  window.scrollTo({top:0,left:0,behavior:'auto'});
+
+  try{
+    if(s==='month'){renderMonth();renderWeekdayAnalyticsNEXT();NEXT.renderMonth();}
+    else if(s==='money'){
+      const added=materializeRecurringV22(new Date());
+      if(added)toast(`Добавлено регулярных операций: ${added}`);
+      renderMoneyV21();
+      try{renderSalary();}catch(e){}
+    }
+    else if(s==='calendar')renderCalendar();
+    else if(s==='stats'){renderStats();try{renderFinanceStats();}catch(e){}}
+    else if(s==='settings'){renderSettings();try{NEXT.renderTemplates();}catch(e){}}
+    else if(s==='home'){try{renderHomeWalletsV24();}catch(e){}}
+  }catch(err){
+    console.error('Screen render error',s,err);
   }
-  if(s==='calendar')renderCalendar();
-  if(s==='stats'){renderStats();try{renderFinanceStats();}catch(e){}}
-  if(s==='settings'){renderSettings();try{NEXT.renderTemplates();}catch(e){}}
 }
 
-function enforceSingleScreen(){
-  const active=document.querySelector('.screen.active')?.id||'home';
-  document.querySelectorAll('.screen').forEach(el=>{
-    const on=el.id===active;
-    el.hidden=!on;
-    el.style.setProperty('display',on?'block':'none','important');
-    el.setAttribute('aria-hidden',on?'false':'true');
-  });
+// showScreen is intentionally replaced only once, after every legacy wrapper.
+showScreen=navigateToScreenV283;
+window.showScreen=navigateToScreenV283;
+
+// Rebind the navigation controls explicitly. This avoids stale closures from
+// previous versions and guarantees that Settings and every bottom tab work.
+document.querySelectorAll('.tab[data-screen]').forEach(btn=>{
+  btn.onclick=null;
+  btn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();navigateToScreenV283(btn.dataset.screen);});
+});
+const settingsButtonV283=document.getElementById('settingsBtn');
+if(settingsButtonV283){
+  settingsButtonV283.onclick=null;
+  settingsButtonV283.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();navigateToScreenV283('settings');});
+}
+
+function enforceSingleScreenV283(){
+  const current=document.querySelector('.screen.active')?.id||'home';
+  navigateToScreenV283(current);
 }
 
 // Keep the experimental build clearly separate from the original app data.
-data.version=28.2;data.next=data.next||{shiftTemplates:[]};save();
-enforceSingleScreen();
+data.version=28.3;
+data.next=data.next||{shiftTemplates:[]};
+save();
+enforceSingleScreenV283();
